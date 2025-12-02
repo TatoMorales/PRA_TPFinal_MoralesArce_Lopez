@@ -7,17 +7,15 @@ from tf2_ros import TransformBroadcaster
 import numpy as np
 import math
 
-# Constantes de Mapeo
-MAP_SIZE_X = 20.0 # metros
-MAP_SIZE_Y = 20.0 # metros
-RESOLUTION = 0.05 # metros/pixel
-MAP_CENTER_X = 10.0 # offset en metros
+MAP_SIZE_X = 20.0
+MAP_SIZE_Y = 20.0
+RESOLUTION = 0.05
+MAP_CENTER_X = 10.0
 MAP_CENTER_Y = 10.0
 
 # Probabilidades Log-Odds
 L_OCC = np.log(0.8 / 0.2) # Log-odd de celda ocupada
 L_FREE = np.log(0.3 / 0.7) # Log-odd de celda libre
-L_THRESH = 2.0 # Umbral para decir que está "ocupado" definitivamente
 
 def quaternion_to_euler(x, y, z, w):
     t0 = +2.0 * (w * x + y * z)
@@ -40,7 +38,6 @@ def euler_to_quaternion(yaw, pitch, roll):
     qy = np.cos(roll/2) * np.sin(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.cos(pitch/2) * np.sin(yaw/2)
     qz = np.cos(roll/2) * np.cos(pitch/2) * np.sin(yaw/2) - np.sin(roll/2) * np.sin(pitch/2) * np.cos(yaw/2)
     qw = np.cos(roll/2) * np.cos(pitch/2) * np.cos(yaw/2) + np.sin(roll/2) * np.sin(pitch/2) * np.sin(yaw/2)
-
     return [qx, qy, qz, qw]
 
 class FastSlamNode(Node):
@@ -56,8 +53,8 @@ class FastSlamNode(Node):
         self.height = int(MAP_SIZE_Y / RESOLUTION)
         self.map_log_odds = np.zeros((self.width, self.height))
         
-        # Variables de estado
         self.last_odom = None
+        self.current_odom_raw = None
         self.robot_pose = [0.0, 0.0, 0.0] # Pose estimada final (x, y, theta)
 
         self.sub_odom = self.create_subscription(Odometry, '/calc_odom', self.odom_callback, 10)
@@ -83,34 +80,28 @@ class FastSlamNode(Node):
 
         if self.last_odom is None:
             self.last_odom = (current_x, current_y, yaw)
+            self.current_odom_raw = (current_x, current_y, yaw)
             return
 
-        # Calcular deltas relativos al robot (delta_trans, delta_rot1, delta_rot2)
         dx = current_x - self.last_odom[0]
         dy = current_y - self.last_odom[1]
         dyaw = yaw - self.last_odom[2]
+        dyaw = (dyaw + np.pi) % (2 * np.pi) - np.pi
         
         # Modelo simple de odometría (rotación + traslación)
         delta_trans = math.sqrt(dx**2 + dy**2)
-        delta_rot = dyaw # Simplificación para movimientos pequeños
+        noise_trans = 0.02
+        noise_rot = 0.02
 
-        # Actualizar partículas con Ruido Gaussiano
-        noise_trans = 0.05 # Desviación estándar en metros
-        noise_rot = 0.05   # Desviación estándar en radianes
-
-        # Vectorización numpy para eficiencia
-        # Nuevo X = X + (v + ruido) * cos(theta)
         noise_t = np.random.normal(0, noise_trans, self.num_particles)
         noise_r = np.random.normal(0, noise_rot, self.num_particles)
 
         self.particles[:, 0] += (delta_trans + noise_t) * np.cos(self.particles[:, 2])
         self.particles[:, 1] += (delta_trans + noise_t) * np.sin(self.particles[:, 2])
-        self.particles[:, 2] += (delta_rot + noise_r)
-        
-        # Normalizar ángulos entre -pi y pi
+        self.particles[:, 2] += (dyaw + noise_r)
         self.particles[:, 2] = (self.particles[:, 2] + np.pi) % (2 * np.pi) - np.pi
-
         self.last_odom = (current_x, current_y, yaw)
+        self.current_odom_raw = (current_x, current_y, yaw)
 
     def scan_callback(self, msg):
         """
@@ -141,15 +132,82 @@ class FastSlamNode(Node):
         self.publish_map(timestamp)
         self.publish_particles(timestamp) 
         self.publish_estimated_pose(timestamp)
+        self.publish_tf(timestamp)
 
+    def publish_tf(self, stamp):
+        """
+        Calcula y publica la transformación MAP -> ODOM.
+        T_map_odom = T_map_base * (T_odom_base)^-1
+        """
+        if self.current_odom_raw is None: return
+
+        # 1. Pose del robot según SLAM (Map -> Base)
+        x_map, y_map, theta_map = self.robot_pose
+        
+        # 2. Pose del robot según Odometría (Odom -> Base)
+        x_odom, y_odom, theta_odom = self.current_odom_raw
+
+        # --- Matemática de Matrices Manual (Sin tf_transformations) ---
+        
+        # Matriz Map -> Base
+        c_m = np.cos(theta_map); s_m = np.sin(theta_map)
+        T_map_base = np.array([
+            [c_m, -s_m, 0, x_map],
+            [s_m,  c_m, 0, y_map],
+            [0,    0,   1, 0    ],
+            [0,    0,   0, 1    ]
+        ])
+
+        # Matriz Odom -> Base
+        c_o = np.cos(theta_odom); s_o = np.sin(theta_odom)
+        T_odom_base = np.array([
+            [c_o, -s_o, 0, x_odom],
+            [s_o,  c_o, 0, y_odom],
+            [0,    0,   1, 0     ],
+            [0,    0,   0, 1     ]
+        ])
+
+        # Inversa de Odom -> Base (Base -> Odom)
+        # Para matrices de rotación+traslación rígida, la inversa es simple, 
+        # pero usamos linalg.inv de numpy para ser genéricos y seguros.
+        T_base_odom = np.linalg.inv(T_odom_base)
+
+        # Multiplicación: Map -> Odom = (Map->Base) * (Base->Odom)
+        T_map_odom = np.dot(T_map_base, T_base_odom)
+
+        # Extraer Traslación y Rotación de la matriz resultante
+        tx = T_map_odom[0, 3]
+        ty = T_map_odom[1, 3]
+        
+        # Extraer Yaw de la matriz de rotación (elemento 1,0 y 0,0)
+        # R = [[cos, -sin], [sin, cos]]
+        yaw_correction = np.arctan2(T_map_odom[1, 0], T_map_odom[0, 0])
+
+        # Convertir a Cuaternión
+        q = euler_to_quaternion(yaw_correction, 0, 0)
+
+        # Publicar
+        t = TransformStamped()
+        t.header.stamp = stamp
+        t.header.frame_id = "map"
+        t.child_frame_id = "odom"
+        
+        t.transform.translation.x = tx
+        t.transform.translation.y = ty
+        t.transform.translation.z = 0.0
+        t.transform.rotation.x = q[0]
+        t.transform.rotation.y = q[1]
+        t.transform.rotation.z = q[2]
+        t.transform.rotation.w = q[3]
+        
+        self.tf_broadcaster.sendTransform(t)
 
     def update_weights(self, ranges, angle_min, angle_inc):
         """
         Calcula qué tan bien encaja el scan de cada partícula con el mapa construido.
         """
         # Si el mapa está vacío (al inicio), no podemos ponderar bien -> pesos uniformes
-        if np.all(self.map_log_odds == 0):
-            return 
+        if np.all(self.map_log_odds == 0): return 
 
         # Submuestreo del láser para rendimiento (usar 1 de cada 10 rayos)
         step = 10 
@@ -318,8 +376,7 @@ class FastSlamNode(Node):
             pose = Pose()
             pose.position.x = p[0]
             pose.position.y = p[1]
-            # Convertir theta (yaw) a Quaternion
-            q = euler_to_quaternion(0, 0, p[2])
+            q = euler_to_quaternion(p[2], 0, 0)
             pose.orientation.x = q[0]
             pose.orientation.y = q[1]
             pose.orientation.z = q[2]
@@ -336,7 +393,7 @@ class FastSlamNode(Node):
         
         msg.pose.position.x = self.robot_pose[0]
         msg.pose.position.y = self.robot_pose[1]
-        q = euler_to_quaternion(0, 0, self.robot_pose[2])
+        q = euler_to_quaternion(self.robot_pose[2], 0, 0)
         msg.pose.orientation.x = q[0]
         msg.pose.orientation.y = q[1]
         msg.pose.orientation.z = q[2]
