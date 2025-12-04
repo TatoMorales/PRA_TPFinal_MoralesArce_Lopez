@@ -45,8 +45,8 @@ class FastSlamNode(Node):
     def __init__(self):
         super().__init__('fast_slam_node')
 
-        # Aumento el número de partículas para mejorar la estimación en giros prolongados
-        self.num_particles = 120
+        # Número de partículas
+        self.num_particles = 100
         self.particles = np.zeros((self.num_particles, 4)) # [x, y, theta, peso]
         self.particles[:, 3] = 1.0 / self.num_particles
 
@@ -92,11 +92,10 @@ class FastSlamNode(Node):
         dyaw = yaw - self.last_odom[2]
         dyaw = (dyaw + np.pi) % (2 * np.pi) - np.pi
         
-        # Modelo simple de odometría (rotación + traslación)
+        # Modelo simple de odometría
         delta_trans = math.sqrt(dx**2 + dy**2)
-        # Reduzco el ruido agregado para que las partículas no se dispersen tanto
         noise_trans = 0.01
-        noise_rot = 0.01
+        noise_rot = 0.01 # Ruido de odometría
 
         noise_t = np.random.normal(0, noise_trans, self.num_particles)
         noise_r = np.random.normal(0, noise_rot, self.num_particles)
@@ -141,21 +140,20 @@ class FastSlamNode(Node):
 
     def publish_tf(self, stamp):
         """
-        Calcula y publica la transformación MAP -> ODOM.
+        Calcula y publica la matriz de transformación para visualizar el MAPA según la terna de la odometería
         T_map_odom = T_map_base * (T_odom_base)^-1
         """
         if self.current_odom_raw is None: return
 
-        # 1. Pose del robot según SLAM (Map -> Base)
-        x_map, y_map, theta_map = self.robot_pose
+        # (Map -> Base)
+        x_map, y_map, theta_map = self.robot_pose # La pose estimada por las partículas
         
-        # 2. Pose del robot según Odometría (Odom -> Base)
-        x_odom, y_odom, theta_odom = self.current_odom_raw
-
-        # --- Matemática de Matrices Manual (Sin tf_transformations) ---
+        # (Odom -> Base)
+        x_odom, y_odom, theta_odom = self.current_odom_raw # Pose del robot según Odometría 
         
         # Matriz Map -> Base
-        c_m = np.cos(theta_map); s_m = np.sin(theta_map)
+        c_m, s_m = np.cos(theta_map), np.sin(theta_map)
+
         T_map_base = np.array([
             [c_m, -s_m, 0, x_map],
             [s_m,  c_m, 0, y_map],
@@ -251,20 +249,33 @@ class FastSlamNode(Node):
 
     def resample_particles(self):
         """
-        Resampling estocástico universal (Low Variance Sampling es mejor, pero este es simple)
+        Usa low variance sampling como el algoritmo estándar de Thrun
         """
-        # Calcular N_eff para ver si es necesario resamplear
         weights = self.particles[:, 3]
+        weights = weights / np.sum(weights) # Normalizo los pesos por las dudas
+        
+        # Calcular N_eff para decidir si resamplear (opcional, pero recomendado)
         n_eff = 1.0 / np.sum(np.square(weights))
+        if n_eff > self.num_particles / 2.0:
+            return # No resamplear si todavía hay diversidad
 
-        if n_eff < self.num_particles / 2.0:
-            indices = np.random.choice(
-                self.num_particles, 
-                self.num_particles, 
-                p=weights
-            )
-            self.particles = self.particles[indices]
-            self.particles[:, 3] = 1.0 / self.num_particles # Reset pesos post-resample
+        new_particles = np.zeros_like(self.particles)
+        
+        r = np.random.uniform(0, 1.0 / self.num_particles)
+        c = weights[0] # Cumulative sum
+        i = 0
+        
+        # "Rueda de la fortuna"
+        for m in range(self.num_particles):
+            U = r + m * (1.0 / self.num_particles)
+            while U > c:
+                i = (i + 1) % self.num_particles
+                c += weights[i]
+            new_particles[m] = self.particles[i]
+            
+        # Reset de pesos a uniforme
+        new_particles[:, 3] = 1.0 / self.num_particles
+        self.particles = new_particles
 
     def update_map(self, particle, ranges, angle_min, angle_inc):
         """
