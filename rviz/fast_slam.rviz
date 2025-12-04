@@ -1,0 +1,235 @@
+Panels:
+- Class: rviz_common/Displays
+  Help Height: 78
+  Name: Displays
+  Property Tree Widget:
+    Expanded:
+    - /Global Options1
+    - /TF1/Frames1
+    - /Map1
+    - /LaserScan1
+    - /Odometry (calc_odom)1
+    - /Odometry (odom)1
+    - /Estimated Pose1
+    Splitter Ratio: 0.5
+  Tree Height: 602
+- Class: rviz_common/Views
+  Expanded:
+  - /Current View1
+  Name: Views
+  Splitter Ratio: 0.5
+Visualization Manager:
+  Class: ''
+  Displays:
+  - Alpha: 0.5
+    Cell Size: 1
+    Class: rviz_default_plugins/Grid
+    Color: 160; 160; 164
+    Enabled: true
+    Line Style:
+      Line Width: 0.03
+      Value: Lines
+    Name: Grid
+    Normal Cell Count: 0
+    Offset:
+      X: 0
+      Y: 0
+      Z: 0
+    Plane: XY
+    Plane Cell Count: 10
+    Reference Frame: <Fixed Frame>
+    Value: true
+  - Class: rviz_default_plugins/TF
+    Enabled: true
+    Frame Timeout: 15
+    Frames:
+      All Enabled: false
+      map:
+        Value: true
+      odom:
+        Value: true
+      base_link:
+        Value: true
+      base_scan:
+        Value: true
+    Marker Alpha: 1
+    Marker Scale: 1
+    Name: TF
+    Show Arrows: true
+    Show Axes: true
+    Show Names: true
+    Tree: {}
+    Update Interval: 0
+    Value: true
+  - Alpha: 1
+    Class: rviz_default_plugins/Map
+    Color Scheme: map
+    Draw Behind: false
+    Enabled: true
+    Name: Map
+    Topic:
+      Value: /map
+    Unreliable: false
+    Value: true
+  - Alpha: 1
+    Autocompute Intensity Bounds: true
+    Autocompute Value Bounds:
+      Max Value: 10
+      Min Value: -10
+      Value: true
+    Axis: Z
+    Channel Name: intensity
+    Class: rviz_default_plugins/LaserScan
+    Color: 25; 255; 0
+    Color Transformer: FlatColor
+    Decay Time: 0
+    Enabled: true
+    Invert Rainbow: false
+    Max Intensity: 4096
+    Min Intensity: 0
+    Name: LaserScan
+    Position Transformer: XYZ
+    Queue Size: 10
+    Selectable: true
+    Size (Pixels): 3
+    Size (m): 0.1
+    Style: Points
+    Topic:
+      Value: /scan
+    Unreliable: false
+    Use Fixed Frame: true
+    Use rainbow: false
+    Value: true
+  - Angle Tolerance: 0.1
+    Class: rviz_default_plugins/Odometry
+    Covariance:
+      Orientation:
+        Alpha: 0.5
+        Color: 255; 255; 127
+        Frame: Local
+        Offset: 1
+        Scale: 1
+        Value: true
+      Position:
+        Alpha: 0.5
+        Color: 204; 51; 204
+        Offset: 1
+        Scale: 1
+        Value: true
+      Value: false
+    Enabled: true
+    Keep: 1
+    Name: Odometry (calc_odom)
+    Position Tolerance: 0.1
+    Shape:
+      Alpha: 1
+      Axes Length: 0.5
+      Axes Radius: 0.02
+      Color: 25; 255; 240
+      Head Length: 0.2
+      Head Radius: 0.05
+      Shaft Length: 0.1
+      Shaft Radius: 0.02
+      Value: Axes
+    Topic:
+      Value: /calc_odom
+    Value: true
+  - Angle Tolerance: 0.1
+    Class: rviz_default_plugins/Odometry
+    Covariance:
+      Orientation:
+        Alpha: 0.5
+        Color: 85; 255; 255
+        Frame: Local
+        Offset: 1
+        Scale: 1
+        Value: false
+      Position:
+        Alpha: 0.5
+        Color: 204; 51; 204
+        Offset: 1
+        Scale: 1
+        Value: false
+      Value: false
+    Enabled: true
+    Keep: 1
+    Name: Odometry (odom)
+    Position Tolerance: 0.1
+    Shape:
+      Alpha: 1
+      Axes Length: 0.5
+      Axes Radius: 0.02
+      Color: 255; 85; 127
+      Head Length: 0.2
+      Head Radius: 0.05
+      Shaft Length: 0.1
+      Shaft Radius: 0.02
+      Value: Axes
+    Topic:
+      Value: /odom
+    Value: true
+  - Alpha: 1
+    Arrow Length: 0.3
+    Axes Length: 0.3
+    Axes Radius: 0.02
+    Class: rviz_default_plugins/Pose
+    Color: 255; 255; 0
+    Enabled: true
+    Head Length: 0.1
+    Head Radius: 0.03
+    Name: Estimated Pose
+    Shaft Length: 0.1
+    Shaft Radius: 0.02
+    Shape: Axes
+    Topic:
+      Value: /estimated_pose
+    Value: true
+  - Alpha: 1
+    Class: rviz_default_plugins/RobotModel
+    Enabled: true
+    Name: Robot
+    Robot Description: robot_description
+    TF Prefix: ''
+    Update Interval: 0
+    Value: true
+    Visual Enabled: true
+    Collision Enabled: false
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+  - Class: rviz_default_plugins/Interact
+    Hide Inactive Objects: true
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Select
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 8
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.785
+      Target Frame: map
+      Yaw: 0.785
+    Saved: null
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 800
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd00000001000000000000014a000002f2fc0200000008fb000000100044006900730070006c0061007900730100000041000002f2000000d700fffffffb00000008005600690065007700730000000041000002f2000000ad00fffffffb0000000c00430061006d00650072006100000002ff000001610000000000000000fb0000001e004d006f00740069006f006e00200050006c0061006e006e00690100000374000001890000000000000000fb000000280054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a0049006d00610067006501000003880000017d0000000000000000f000000010000000200000001000000020c0000002800000001000000010000052b000002f20000000100000002fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Width: 1200
+  X: 0
+  Y: 0

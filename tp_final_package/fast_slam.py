@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, DurabilityPolicy
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry, OccupancyGrid
 from geometry_msgs.msg import TransformStamped, PoseArray, PoseStamped, Pose
@@ -44,8 +45,8 @@ class FastSlamNode(Node):
     def __init__(self):
         super().__init__('fast_slam_node')
 
-        # No uso la clase Partcile para intentar optimizar el uso de partículas
-        self.num_particles = 50
+        # Aumento el número de partículas para mejorar la estimación en giros prolongados
+        self.num_particles = 120
         self.particles = np.zeros((self.num_particles, 4)) # [x, y, theta, peso]
         self.particles[:, 3] = 1.0 / self.num_particles
 
@@ -60,7 +61,10 @@ class FastSlamNode(Node):
         self.sub_odom = self.create_subscription(Odometry, '/calc_odom', self.odom_callback, 10)
         self.sub_scan = self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
 
-        self.pub_map = self.create_publisher(OccupancyGrid, '/map', 10)
+        # Publico el mapa con QoS latched (transient local) para que map_saver pueda leerlo
+        map_qos = QoSProfile(depth=1)
+        map_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        self.pub_map = self.create_publisher(OccupancyGrid, '/map', map_qos)
         self.pub_particles = self.create_publisher(PoseArray, '/particle_cloud', 10)
         self.pub_pose = self.create_publisher(PoseStamped, '/estimated_pose', 10)
 
@@ -90,8 +94,9 @@ class FastSlamNode(Node):
         
         # Modelo simple de odometría (rotación + traslación)
         delta_trans = math.sqrt(dx**2 + dy**2)
-        noise_trans = 0.02
-        noise_rot = 0.02
+        # Reduzco el ruido agregado para que las partículas no se dispersen tanto
+        noise_trans = 0.01
+        noise_rot = 0.01
 
         noise_t = np.random.normal(0, noise_trans, self.num_particles)
         noise_r = np.random.normal(0, noise_rot, self.num_particles)
@@ -209,8 +214,8 @@ class FastSlamNode(Node):
         # Si el mapa está vacío (al inicio), no podemos ponderar bien -> pesos uniformes
         if np.all(self.map_log_odds == 0): return 
 
-        # Submuestreo del láser para rendimiento (usar 1 de cada 10 rayos)
-        step = 10 
+        # Submuestreo del láser para rendimiento (más denso para mejorar verosimilitud)
+        step = 6
         valid_ranges = ranges[::step]
         angles = np.arange(len(ranges)) * angle_inc + angle_min
         valid_angles = angles[::step]
