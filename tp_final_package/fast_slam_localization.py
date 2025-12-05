@@ -106,8 +106,8 @@ class FastSlamLocalizationNode(Node):
         q = msg.pose.pose.orientation
         _, _, yaw = quaternion_to_euler(q.x, q.y, q.z, q.w)
 
-        noise_pos = np.random.normal(0.0, 0.1, size=(self.num_particles, 2))
-        noise_yaw = np.random.normal(0.0, 0.05, size=(self.num_particles,))
+        noise_pos = np.random.normal(0.0, 0.05, size=(self.num_particles, 2))
+        noise_yaw = np.random.normal(0.0, 0.02, size=(self.num_particles,))
 
         self.particles[:, 0] = x + noise_pos[:, 0]
         self.particles[:, 1] = y + noise_pos[:, 1]
